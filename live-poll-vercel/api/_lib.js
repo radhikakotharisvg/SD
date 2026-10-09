@@ -24,12 +24,16 @@ function voterId(req, res) {
   return id;
 }
 
+// A voter's saved value is a JSON array of option numbers, e.g. [0,3,7] (an old single number still works)
+const parse = v => { try { const x = JSON.parse(v); return (Array.isArray(x) ? x : [x]).filter(i => Number.isInteger(i) && i >= 0 && i < OPTIONS.length); } catch { return []; } };
+
 async function snapshot() {
   const [vals, open] = await redis(['HVALS', 'poll:votes'], ['GET', 'poll:open']);
   const counts = OPTIONS.map(() => 0);
-  vals.forEach(v => { const i = Number(v); if (counts[i] !== undefined) counts[i]++; });
-  return { options: OPTIONS, counts, total: vals.length, open: open !== '0' };
+  let total = 0;
+  vals.forEach(v => { const a = [...new Set(parse(v))]; if (a.length) total++; a.forEach(i => counts[i]++); });
+  return { options: OPTIONS, counts, total, open: open !== '0' };   // total = number of people who voted
 }
 
 const isAdmin = req => !!process.env.ADMIN_KEY && (req.query.key || '') === process.env.ADMIN_KEY;
-module.exports = { OPTIONS, redis, voterId, snapshot, isAdmin };
+module.exports = { OPTIONS, redis, voterId, snapshot, isAdmin, parse };
